@@ -81,6 +81,17 @@ def res_path(name):
     return os.path.join(base, name)
 
 
+def set_window_icon(root):
+    """窗口和任务栏用生成的图标（tools/make_icon.py 产物 icon.ico，打包时 --add-data 带进来）；
+    没有这个文件就用 Tk 默认图标，不报错。"""
+    try:
+        ico = res_path("icon.ico")
+        if os.path.exists(ico):
+            root.iconbitmap(ico)
+    except Exception:
+        pass
+
+
 def ps_quote(value):
     """把路径写成 PowerShell 里的单引号字符串（单引号翻倍）。"""
     return "'" + str(value).replace("'", "''") + "'"
@@ -278,6 +289,7 @@ class Installer:
 
     def _build_ui(self):
         self.root.title("Xpad-joy 安装引导")
+        set_window_icon(self.root)
         self.root.configure(bg=BG)
         self.root.minsize(680, 420)
 

@@ -207,6 +207,16 @@ def default_route_ip():
         s.close()
 
 
+def set_window_icon(root):
+    """窗口和任务栏用生成的图标（tools/make_icon.py 产物 icon.ico，打包时 --add-data 带进来）；
+    没有这个文件就用 Tk 默认图标，不报错。"""
+    try:
+        base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+        ico = os.path.join(base, "icon.ico")
+        if os.path.exists(ico):
+            root.iconbitmap(ico)
+    except Exception:
+        pass
 def find_adb():
     """先 PATH 里的 adb，再找客户端自己同目录（安装引导会把 adb 复制到安装位置），再试
     D:\\Android\\SDK\\platform-tools\\adb.exe；都没有返回 None。"""
@@ -388,6 +398,7 @@ def main():
         client.running = False
         return 1
     root.title("Xpad-joy 电脑客户端")
+    set_window_icon(root)
     root.configure(bg=BG)
     root.minsize(600, 380)
 

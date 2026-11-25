@@ -5,7 +5,7 @@ a = Analysis(
     ['installer.py'],
     pathex=[],
     binaries=[],
-    datas=[('Xpad-joy.exe', '.'), ('Xpad-joy-Uninstaller.exe', '.'), ('vendor/ViGEmBus_1.22.0_x64_x86_arm64.exe', '.'), ('vendor/platform-tools', 'platform-tools')],
+    datas=[('icon.ico', '.'), ('Xpad-joy.exe', '.'), ('Xpad-joy-Uninstaller.exe', '.'), ('vendor/ViGEmBus_1.22.0_x64_x86_arm64.exe', '.'), ('vendor/platform-tools', 'platform-tools')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,4 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['icon.ico'],
 )

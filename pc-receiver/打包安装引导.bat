@@ -46,8 +46,16 @@ if not exist "vendor\platform-tools\adb.exe" (
     echo        platform-tools into vendor\platform-tools\ (only needed for the USB/ADB path).
 )
 
-echo [BUILD] pyinstaller --onefile --windowed --name Xpad-joy-Installer --clean installer.py
-py -3 -m PyInstaller --onefile --windowed --name Xpad-joy-Installer --clean ^
+set ICONFLAG=
+if exist "icon.ico" (
+    set ICONFLAG=--icon "icon.ico" --add-data "icon.ico;."
+) else (
+    echo [WARN] icon.ico not found here. Run tools\make_icon.py once; without it the exe keeps the
+    echo        default icon.
+)
+
+echo [BUILD] pyinstaller --onefile --windowed --name Xpad-joy-Installer --clean [icon] installer.py
+py -3 -m PyInstaller --onefile --windowed --name Xpad-joy-Installer --clean %ICONFLAG% ^
     --add-data "Xpad-joy.exe;." --add-data "Xpad-joy-Uninstaller.exe;." ^
     --add-data "vendor\ViGEmBus_1.22.0_x64_x86_arm64.exe;." ^
     --add-data "vendor\platform-tools;platform-tools" installer.py

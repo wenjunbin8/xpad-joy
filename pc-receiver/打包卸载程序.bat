@@ -21,8 +21,16 @@ py -3 -c "import PyInstaller" >nul 2>nul || (
     exit /b 1
 )
 
-echo [BUILD] pyinstaller --onefile --windowed --name Xpad-joy-Uninstaller --clean uninstaller.py
-py -3 -m PyInstaller --onefile --windowed --name Xpad-joy-Uninstaller --clean uninstaller.py
+set ICONFLAG=
+if exist "icon.ico" (
+    set ICONFLAG=--icon "icon.ico" --add-data "icon.ico;."
+) else (
+    echo [WARN] icon.ico not found here. Run tools\make_icon.py once; without it the exe keeps the
+    echo        default icon.
+)
+
+echo [BUILD] pyinstaller --onefile --windowed --name Xpad-joy-Uninstaller --clean [icon] uninstaller.py
+py -3 -m PyInstaller --onefile --windowed --name Xpad-joy-Uninstaller --clean %ICONFLAG% uninstaller.py
 if errorlevel 1 (
     echo [ERROR] build failed. See the output above.
     pause

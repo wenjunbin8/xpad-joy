@@ -28,6 +28,10 @@
 
 布局页可以点选按键拖动移位、用滑条改大小，保存后手柄屏按同一份配置摆放（`LayoutConfig`）。
 
+图标 —— 电脑客户端、安装引导、卸载程序和手机 App 共用这一个（`tools/make_icon.py` 用 Pillow 纯代码画，`icon.ico` 有 16–256 七档；手机用 `res/mipmap-*` + 自适应图标，图形在 108dp 的 66dp 安全区里）：
+
+![Xpad-joy 图标](assets/icon_master.png)
+
 ---
 
 ## 两条链路
@@ -78,8 +82,10 @@
 
 ```
 android/        安卓 App（Kotlin，无第三方 UI 库；自定义 View 画按键、摇杆、十字键）
-pc-receiver/    电脑端：client.py（界面）、receiver.py（控制台）、installer.py / uninstaller.py、*.spec、bat
+pc-receiver/    电脑端：client.py（界面）、receiver.py（控制台）、installer.py / uninstaller.py、*.spec、bat、icon.ico
 docs/           界面截图和归档的开发记录
+tools/          生成图标的脚本（make_icon.py、preview_on_bg.py，要 Pillow）
+assets/         图标主图和小尺寸预览
 ```
 
 ---

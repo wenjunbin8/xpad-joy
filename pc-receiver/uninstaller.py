@@ -93,6 +93,26 @@ def out(msg, write_log=True):
             pass
 
 
+def bundled_path(name):
+    """打包后从 PyInstaller 的临时解压目录取内置文件（icon.ico）；跑源代码时从脚本目录取。"""
+    if getattr(sys, "frozen", False):
+        base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base, name)
+    return path if os.path.exists(path) else ""
+
+
+def set_window_icon(root):
+    """窗口和任务栏用生成的图标（tools/make_icon.py 产物 icon.ico）；没有就用默认图标，不报错。"""
+    try:
+        ico = bundled_path("icon.ico")
+        if ico:
+            root.iconbitmap(ico)
+    except Exception:
+        pass
+
+
 def ps_quote(value):
     return "'" + str(value).replace("'", "''") + "'"
 
@@ -384,6 +404,7 @@ class Uninstaller:
 
     def _build_ui(self):
         self.root.title("Xpad-joy 卸载")
+        set_window_icon(self.root)
         self.root.configure(bg=BG)
         self.root.minsize(680, 420)
 
