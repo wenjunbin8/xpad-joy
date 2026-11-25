@@ -28,12 +28,6 @@
 
 布局页可以点选按键拖动移位、用滑条改大小，保存后手柄屏按同一份配置摆放（`LayoutConfig`）。
 
-图标 —— 电脑客户端、安装引导、卸载程序和手机 App 共用这一个（`tools/make_icon.py` 用 Pillow 纯代码画，`icon.ico` 有 16–256 七档；手机用 `res/mipmap-*` + 自适应图标，图形在 108dp 的 66dp 安全区里）：
-
-![Xpad-joy 图标](assets/icon_master.png)
-
----
-
 ## 两条链路
 
 | 方式 | 手机 | 电脑 | 优点 | 代价 |
