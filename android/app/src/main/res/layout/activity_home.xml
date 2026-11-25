@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 第一屏：保留刘海区域（fitsSystemWindows），运行信息已移到电脑端程序 -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:fitsSystemWindows="true"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingBottom="14dp"
+            android:text="@string/title"
+            android:textColor="@color/ink"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center" />
+
+        <!-- 连接状态 + 连接按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/home_status"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/not_connected"
+                android:textColor="@color/ink"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/home_connect"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill_primary"
+                android:textColor="@color/ink"
+                android:text="@string/connect" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="14dp"
+            android:paddingBottom="8dp"
+            android:text="@string/layouts"
+            android:textColor="@color/accent"
+            android:textSize="16sp" />
+
+        <!-- 布局卡片：当前布局的状态图（按当前配置实时绘制） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card"
+            android:padding="12dp">
+
+            <com.xpad.joy.LayoutPreviewView
+                android:id="@+id/home_preview"
+                android:layout_width="match_parent"
+                android:layout_height="170dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingTop="6dp"
+                android:gravity="center_vertical">
+
+                <Button
+                    android:id="@+id/home_enter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/pill_primary"
+                    android:textColor="@color/ink"
+                    android:text="@string/enter_gamepad" />
+
+                <Button
+                    android:id="@+id/home_customize"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:background="@drawable/pill_outline"
+                    android:textColor="@color/ink"
+                    android:text="@string/customize" />
+
+                <TextView
+                    android:id="@+id/home_hint"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:paddingStart="10dp"
+                    android:text="排布按参考图；双击摇杆 = L3/R3（再双击取消）"
+                    android:textColor="@color/dim"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="14dp"
+            android:paddingBottom="6dp"
+            android:text="连接设置"
+            android:textColor="@color/accent"
+            android:textSize="16sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/link_adb"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill_outline"
+                android:textColor="@color/ink"
+                android:text="@string/mode_adb" />
+
+            <Button
+                android:id="@+id/link_wifi"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill_outline"
+                android:textColor="@color/ink"
+                android:text="@string/mode_wifi" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="6dp">
+
+            <EditText
+                android:id="@+id/home_ip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="@string/hint_pc_ip"
+                android:inputType="text"
+                android:textColor="@color/ink"
+                android:textColorHint="@color/dim"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/home_scan"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill_outline"
+                android:textColor="@color/ink"
+                android:text="@string/scan_qr" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="6dp">
+
+            <Button
+                android:id="@+id/gyro_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill_outline"
+                android:textColor="@color/ink"
+                android:text="@string/gyro" />
+
+            <Button
+                android:id="@+id/battery_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill_outline"
+                android:textColor="@color/ink"
+                android:text="@string/battery_opt" />
+        </LinearLayout>
+
+        <!-- 体感：滑块 = 转多少度到摇杆满量程；回正 = 把当前姿态存成参照 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/gyro_range"
+                android:textColor="@color/dim"
+                android:textSize="13sp" />
+
+            <SeekBar
+                android:id="@+id/gyro_range"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="87" />
+
+            <TextView
+                android:id="@+id/gyro_range_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/ink"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 根容器按 LayoutConfig 摆放按键（可在 App 内「布局」页拖动/改大小并保存） -->
+<com.xpad.joy.PadContainer xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:keepScreenOn="true">
+
+    <com.xpad.joy.TriggerView android:id="@+id/lt" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <com.xpad.joy.TriggerView android:id="@+id/rt" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+
+    <com.xpad.joy.GameButtonView android:id="@+id/lb" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <com.xpad.joy.GameButtonView android:id="@+id/rb" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+
+    <com.xpad.joy.DpadView android:id="@+id/dpad" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+
+    <com.xpad.joy.GameButtonView android:id="@+id/y" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <com.xpad.joy.GameButtonView android:id="@+id/x" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <com.xpad.joy.GameButtonView android:id="@+id/b" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <com.xpad.joy.GameButtonView android:id="@+id/a" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+
+    <com.xpad.joy.StickView android:id="@+id/left_stick" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <com.xpad.joy.StickView android:id="@+id/right_stick" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+
+    <com.xpad.joy.GameButtonView android:id="@+id/back" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <com.xpad.joy.GameButtonView android:id="@+id/guide" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <com.xpad.joy.GameButtonView android:id="@+id/start" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+
+    <com.xpad.joy.GyroBarView android:id="@+id/gyro_bar" android:layout_width="wrap_content" android:layout_height="wrap_content" />
+
+    <Button
+        android:id="@+id/gyro_center"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/pill_outline"
+        android:textColor="@color/ink"
+        android:text="回正" />
+
+    <Button
+        android:id="@+id/pad_close"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/pill_primary"
+        android:textColor="@color/ink"
+        android:text="✕" />
+</com.xpad.joy.PadContainer>

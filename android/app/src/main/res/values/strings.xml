@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Xpad-joy</string>
+    <string name="title">Xpad-joy</string>
+    <string name="layouts">布局</string>
+    <string name="connect">连接</string>
+    <string name="disconnect">断开</string>
+    <string name="hint_pc_ip">电脑 IP（Wi-Fi）/ 127.0.0.1（走 ADB）</string>
+    <string name="enter_gamepad">进入手柄</string>
+    <string name="customize">调整布局</string>
+    <string name="save">保存</string>
+    <string name="exit">退出</string>
+    <string name="reset_default">恢复默认</string>
+    <string name="rotate">旋转</string>
+    <string name="not_connected">未连接</string>
+    <string name="connected">已连接</string>
+    <string name="mode_adb">ADB（USB）</string>
+    <string name="mode_wifi">Wi-Fi UDP</string>
+    <string name="gyro">体感→左摇杆</string>
+    <string name="gyro_center">回正</string>
+    <string name="gyro_range">体感幅度</string>
+    <string name="battery_opt">忽略电池优化</string>
+
+    <!-- 扫码连接：优先 Google Play 服务，失败才用本机相机 -->
+    <string name="scan_qr">扫码连接</string>
+    <string name="qr_title">扫描二维码</string>
+    <string name="qr_close">✕</string>
+    <string name="qr_flash">闪光灯 关</string>
+</resources>

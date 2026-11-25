@@ -1,0 +1,7 @@
+# PC 接收端依赖（Windows, Python 3.10+）
+vgamepad>=0.0.13
+qrcode>=7.4        # client.py 画二维码（纯 Python，不需要 Pillow）
+
+# 注意：vgamepad 依赖 Windows 的 ViGEmBus 驱动（虚拟 Xbox 360 手柄设备）。
+# 需要先安装 ViGEmBus 驱动：https://github.com/nefarius/Injector （或 ViGEmBus 项目页面
+# https://github.com/nefarius/ViGEmBus ）。未安装驱动时 receiver.py 会自动降级为控制台模式。

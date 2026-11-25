@@ -1,0 +1,26 @@
+# Android / Gradle
+.gradle/
+build/
+.kotlin/
+local.properties
+*.apk
+*.aab
+
+# Python
+__pycache__/
+*.pyc
+
+# 打包产物（发布走 GitHub Releases，不进仓库）
+dist/
+
+# 运行日志
+*.log
+
+# IDE / Windows
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+desktop.ini
+*.exe
+pc-receiver/vendor/

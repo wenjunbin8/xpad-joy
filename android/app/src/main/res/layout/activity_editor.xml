@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+    <!-- 画布 = 实际屏幕区域（含刘海区域），所以看到的就是手柄屏的位置 -->
+    <com.xpad.joy.EditorView
+        android:id="@+id/editor"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 收起后屏幕上只有一个「展开」按钮，位于上方中间；展开后固定宽 320dp，三个按钮不会挤成竖排 -->
+    <LinearLayout
+        android:id="@+id/editor_panel"
+        android:layout_width="320dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_margin="10dp"
+        android:orientation="vertical"
+        android:background="@drawable/panel_solid"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/sel_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:visibility="gone"
+                android:text="未选择"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btn_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill_outline"
+                android:textColor="@color/ink"
+                android:text="展开" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/panel_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/label_w"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:text="宽"
+                    android:textColor="@color/dim"
+                    android:textSize="13sp" />
+
+                <SeekBar
+                    android:id="@+id/bar_w"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_h"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/label_h"
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:text="高"
+                    android:textColor="@color/dim"
+                    android:textSize="13sp" />
+
+                <SeekBar
+                    android:id="@+id/bar_h"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_angle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="40dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/rotate"
+                    android:textColor="@color/dim"
+                    android:textSize="13sp" />
+
+                <!-- 滑条只做粗调：1 格 = 5°，不然手指动一点就跳十几度 -->
+                <SeekBar
+                    android:id="@+id/bar_angle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="71" />
+
+                <TextView
+                    android:id="@+id/label_angle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/dim"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_cardinal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btn_a0"
+                    style="@style/AngleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="0°" />
+
+                <Button
+                    android:id="@+id/btn_a90"
+                    style="@style/AngleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="90°" />
+
+                <Button
+                    android:id="@+id/btn_a180"
+                    style="@style/AngleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="180°" />
+
+                <Button
+                    android:id="@+id/btn_a270"
+                    style="@style/AngleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="270°" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/row_fine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <Button
+                    android:id="@+id/btn_fine_m5"
+                    style="@style/AngleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="-5°" />
+
+                <Button
+                    android:id="@+id/btn_fine_m1"
+                    style="@style/AngleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="-1°" />
+
+                <Button
+                    android:id="@+id/btn_fine_p1"
+                    style="@style/AngleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="+1°" />
+
+                <Button
+                    android:id="@+id/btn_fine_p5"
+                    style="@style/AngleButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="+5°" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingTop="6dp"
+                android:gravity="center_vertical">
+
+                <Button
+                    android:id="@+id/btn_save"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:minHeight="40dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:textSize="14sp"
+                    android:background="@drawable/pill_primary"
+                    android:textColor="@color/ink"
+                    android:text="@string/save" />
+
+                <Button
+                    android:id="@+id/btn_reset"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:minWidth="0dp"
+                    android:minHeight="40dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:textSize="14sp"
+                    android:background="@drawable/pill_outline"
+                    android:textColor="@color/ink"
+                    android:text="@string/reset_default" />
+
+                <Button
+                    android:id="@+id/btn_exit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:minWidth="0dp"
+                    android:minHeight="40dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:textSize="14sp"
+                    android:background="@drawable/pill_outline"
+                    android:textColor="@color/ink"
+                    android:text="@string/exit" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

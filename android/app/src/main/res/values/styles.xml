@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 角度按钮（整倍数 + ±1/±5）：只放外观，layout_* 写在 XML 里（style 里的 layout 属性不生效） -->
+    <style name="AngleButton">
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">34dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="android:background">@drawable/pill_outline</item>
+    </style>
+</resources>

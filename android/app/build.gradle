@@ -1,0 +1,43 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.xpad.joy'
+    compileSdk 36            // Android 16（API 36）
+
+    defaultConfig {
+        applicationId "com.xpad.joy"
+        minSdk 26          // 蓝牙 HID 已删掉；26 是保留的下限（SensorManager/VibrationEffect 等 API 从这里开始）
+        targetSdk 36           // 适配 Android 16：运行时权限用 BLUETOOTH_CONNECT
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    // 扫码：优先请求 Google Play 服务代为解码（MLS —— 模型和推理都在 com.google.android.gms 进程里，
+    // APK 里只有接口 + 连接层，所以这块很小）。Play 服务请求失败才退回下面那条。
+    implementation 'com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1'
+
+    // 回退：本机相机取帧 + zxing 自己解（不需要 Google Play 服务，全在本机 CPU）
+    implementation 'com.google.zxing:core:3.5.4'
+
+    // 仍然不引 appcompat：只用框架 API，APK 小、启动快
+}

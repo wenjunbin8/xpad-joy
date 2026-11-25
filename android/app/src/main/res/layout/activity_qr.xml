@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 扫码页：上面一行（关闭 / 标题 / 闪光灯），中间满屏画面。没有说明文字（按你的要求删了）。
+     画面由 ScanPreviewView 自己画：每帧把 YUV 三个平面转成彩色图（软件渲染，双线性），四角括号也画在
+     画面实际显示的范围上。扫到 → 括号变绿 → 自动连接并回第一屏。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg"
+    android:fitsSystemWindows="true"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/qr_close"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/pill_outline"
+            android:textColor="@color/ink"
+            android:text="@string/qr_close" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/qr_title"
+            android:textColor="@color/ink"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center" />
+
+        <Button
+            android:id="@+id/qr_flash"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/pill_outline"
+            android:textColor="@color/ink"
+            android:text="@string/qr_flash" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/card">
+
+        <!-- 画面 + 四角括号：一个 View 画完（ImageView 在软件渲染下放大不滤波，小图就是马赛克） -->
+        <com.xpad.joy.ScanPreviewView
+            android:id="@+id/qr_preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </FrameLayout>
+</LinearLayout>
