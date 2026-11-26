@@ -24,3 +24,9 @@ Thumbs.db
 desktop.ini
 *.exe
 pc-receiver/vendor/
+
+# 鸿蒙（DevEco / hvigor）
+.hvigor/
+oh_modules/
+# 开发过程中截的模拟器截图，不进仓库
+harmony/emutest/*.jpeg

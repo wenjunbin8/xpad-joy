@@ -35,6 +35,7 @@ NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 DRIVER_SERVICE = "ViGEmBus"
 DRIVER_FILE = "ViGEmBus_1.22.0_x64_x86_arm64.exe"
 CLIENT_EXE = "Xpad-joy.exe"
+BUILD_STAMP = "2026-11-27-C（日志首行写版本号 + InstallLocation 和 UninstallString 都用反斜杠）"
 UNINSTALLER_EXE = "Xpad-joy-Uninstaller.exe"
 SHORTCUT_NAME = "Xpad-joy.lnk"
 INFO_FILE = "安装信息.txt"
@@ -106,8 +107,9 @@ def write_uninstall_info(install_dir):
             winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "Xpad-joy 电脑客户端")
             winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, "1.0")
             winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Xpad-joy")
-            winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, install_dir)
-            winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, os.path.join(install_dir, UNINSTALLER_EXE))
+            winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, os.path.normpath(install_dir))
+            winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ,
+                              os.path.normpath(os.path.join(install_dir, UNINSTALLER_EXE)))
             winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, os.path.join(install_dir, CLIENT_EXE))
             winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
             winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
@@ -411,6 +413,7 @@ class Installer:
         threading.Thread(target=self.install, args=(target, desktop, adb), daemon=True).start()
 
     def install(self, target, desktop, adb=True):
+        self.log_async("[版本] 安装引导 %s" % BUILD_STAMP)
         try:
             os.makedirs(target, exist_ok=True)
         except Exception as exc:

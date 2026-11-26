@@ -32,8 +32,24 @@ if exist "icon.ico" (
     echo        default icon.
 )
 
-echo [BUILD] pyinstaller --onefile --windowed --name Xpad-joy --clean [icon] client.py
-py -3 -m PyInstaller --onefile --windowed --name Xpad-joy --clean %ICONFLAG% client.py
+rem ViGEmClient.dll: vgamepad loads it at import time from
+rem   <site-packages>\vgamepad\win\vigem\client\<arch>\ViGEmClient.dll
+rem PyInstaller does NOT collect that DLL (it is not an import), so a onefile exe used to
+rem fail to import vgamepad -> the client received packets but never created the gamepad.
+rem Bundle the whole vigem folder so the path matches inside _MEIPASS.
+set VIGEMFLAG=
+rem find_spec (not import): importing vgamepad connects to ViGEmBus at import time, so the
+rem path lookup must not run the module — otherwise the path comes out empty when the driver
+rem is not installed and the DLL would be skipped.
+for /f "delims=" %%i in ('py -3 -c "import importlib.util as u; s=u.find_spec('vgamepad'); print(s.submodule_search_locations[0])"') do set VGPDIR=%%i
+if exist "%VGPDIR%\win\vigem" (
+    set VIGEMFLAG=--add-data "%VGPDIR%\win\vigem;vgamepad\win\vigem"
+) else (
+    echo [WARN] vgamepad\win\vigem not found -> the exe will not be able to create the virtual pad.
+)
+
+echo [BUILD] pyinstaller --onefile --windowed --name Xpad-joy --clean [icon] [vigem dll] client.py
+py -3 -m PyInstaller --onefile --windowed --name Xpad-joy --clean %ICONFLAG% %VIGEMFLAG% client.py
 if errorlevel 1 (
     echo [ERROR] build failed. See the output above.
     pause

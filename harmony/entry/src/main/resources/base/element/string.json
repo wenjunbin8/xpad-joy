@@ -1,0 +1,7 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "Xpad-joy 主模块" },
+    { "name": "ability_desc", "value": "Xpad-joy" },
+    { "name": "camera_reason", "value": "扫码连接：Scan Kit 请求失败时用手机相机解二维码" }
+  ]
+}

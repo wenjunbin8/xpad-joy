@@ -7,6 +7,7 @@
 - 双击摇杆 = L3 / R3（再双击取消）
 - 陀螺仪可映射到左摇杆（第一屏开关 + 幅度滑条）
 - 游戏发给虚拟手柄的震动会回传给手机马达
+- **鸿蒙端（HarmonyOS）开发中** —— `harmony/` 那份 ArkTS 工程，同一份协议和布局
 
 编译好的文件在 **[Releases](https://github.com/wenjunbin8/xpad-joy/releases)**：`Xpad-joy-Installer.exe`（电脑端安装引导）和 `Xpad-joy.apk`（安卓 App，debug 构建）。
 
@@ -27,6 +28,8 @@
 ![电脑客户端](docs/screenshots/pc-client.png)
 
 布局页可以点选按键拖动移位、用滑条改大小，保存后手柄屏按同一份配置摆放（`LayoutConfig`）。
+
+---
 
 ## 两条链路
 
@@ -76,6 +79,7 @@
 
 ```
 android/        安卓 App（Kotlin，无第三方 UI 库；自定义 View 画按键、摇杆、十字键）
+harmony/        鸿蒙端（ArkTS，开发中；同一份协议和布局）
 pc-receiver/    电脑端：client.py（界面）、receiver.py（控制台）、installer.py / uninstaller.py、*.spec、bat、icon.ico
 docs/           界面截图和归档的开发记录
 tools/          生成图标的脚本（make_icon.py、preview_on_bg.py，要 Pillow）
@@ -90,6 +94,16 @@ assets/         图标主图和小尺寸预览
 - **游戏里看不到手柄**：ViGEmBus 驱动没装，`receiver.py` 会降级成控制台模式；看设备管理器里有没有 ViGEmBus 设备。
 - **走 ADB 时**：`currentTarget()` 一律用 `127.0.0.1`，输入框里的 IP 只给 Wi-Fi 用。客户端重启后手机每 4 秒自动重连；手动点过「断开」会关掉自动重连。
 - **震动测不出真值**：`register_notification` 只在游戏真的对 XInput 设备发震动时才被调用；客户端的「测试手机震动」按钮测的是「能不能送到手机 + 手机会不会震」。
+
+---
+
+## 鸿蒙端（开发中）
+
+`harmony/` 是同一套东西的 HarmonyOS 版（ArkTS，DevEco / hvigor 工程，单 `entry` 模块）：同一份协议（端口 27042、同一组 JSON 字段）、同一套布局配置，页面分第一屏 / 手柄屏 / 布局编辑 / 扫码。
+
+已经跑通的：`hdc rport tcp:27042 tcp:27042` 隧道（方向和 `adb reverse` 一致）、Wi-Fi UDP、扫码（相机权限拿到后要补跑一次才会出画面）、震动回传。
+
+还没做：上架和签名分发。构建用 `hvigorw assembleHap`；没配 `signingConfigs` 时 hvigor 会 WARN 并跳过签名（产物是 unsigned hap，装不到真机），`harmony/build-profile.json5` 里那三行签名路径是占位，要用各自的 DevEco 自动签名。测试过程中截的模拟器截图（`harmony/emutest/*.jpeg`）不进仓库。
 
 ---
 

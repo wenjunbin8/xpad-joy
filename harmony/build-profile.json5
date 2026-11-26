@@ -1,0 +1,75 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "<各自 DevEco 自动签名目录>\\.ohos\\config\\default_harmony_<哈希>.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "<占位：DevEco 生成，不入库>",
+          "profile": "<各自 DevEco 自动签名目录>\\.ohos\\config\\default_harmony_<哈希>.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "<各自 DevEco 自动签名目录>\\.ohos\\config\\default_harmony_<哈希>.p12",
+          "storePassword": "<占位：DevEco 生成，不入库>"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compileSdkVersion": "6.0.1(21)",
+        "compatibleSdkVersion": "6.0.1(21)",
+        "runtimeOS": "HarmonyOS",
+        "targetSdkVersion": "6.0.1(21)"
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug"
+      },
+      {
+        "name": "release"
+      }
+    ],
+    "capabilities": [
+      {
+        "bundleName": "com.xpad.joy",
+        "config": [
+          {
+            "name": "Push Kit",
+            "capability": "com.huawei.service.push.base_service"
+          },
+          {
+            "name": "Device status detection",
+            "capability": "com.huawei.service.device_security.device_verify"
+          },
+          {
+            "name": "Map Kit",
+            "capability": "com.huawei.service.mapkit"
+          },
+          {
+            "name": "Safety Detect",
+            "capability": "com.huawei.service.device_security.safety_detect"
+          }
+        ]
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}
+

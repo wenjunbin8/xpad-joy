@@ -1,0 +1,11 @@
+{
+  "name": "xpad-joy",
+  "version": "1.0.0",
+  "modelVersion": "6.0.1",
+  "description": "Xpad-joy 鸿蒙端（手机 → 电脑游戏手柄）",
+  "main": "",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

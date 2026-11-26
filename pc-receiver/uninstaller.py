@@ -38,6 +38,7 @@ OUR_FILES = ("Xpad-joy.exe", "安装说明.txt", "安装信息.txt", "Xpad-joy.l
              "adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll")
 SELF_LOG = "Xpad-joy-Uninstaller.log"
 SELF_NAME = "Xpad-joy-Uninstaller.exe"
+BUILD_STAMP = "2026-11-27-C（删 Class 驱动条目 + 清 C:\\Windows\\INF 副本 + 提权结果读回来）"
 ALLOWED = set(OUR_FILES) | {SELF_NAME}
 SHORTCUT_NAME = "Xpad-joy.lnk"
 INFO_FILE = "安装信息.txt"
@@ -148,6 +149,70 @@ def run_priv(args, timeout=120):
     return run(args, timeout=timeout) if is_admin() else elevate_run(args, timeout=timeout)
 
 
+CLASS_SYSTEM_GUID = "{4d36e97d-e325-11ce-bfc1-08002be10318}"  # 系统设备类（总线驱动挂在它下面）
+
+
+def driver_class_entry():
+    """Class 键里这个驱动的条目（比如 ...\\Control\\Class\\{4d36e97d…}\\0080）。
+
+    这才是"重启后驱动复活"的源头：条目在、`MatchingDeviceId`（Nefarius\\ViGEmBus\\Gen1）在，
+    开机时 PnP 就照着它重建幻影设备节点、重新登记驱动包、把服务键写回来。
+    `pnputil /delete-driver` 只删驱动存储包，**不删这个条目**；条目归 TrustedInstaller，
+    普通管理员删不掉，要先拿所有权。
+    """
+    if winreg is None:
+        return ""
+    want = DRIVER_SERVICE.lower()
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r"SYSTEM\CurrentControlSet\Control\Class\%s" % CLASS_SYSTEM_GUID) as key:
+            for i in range(400):
+                try:
+                    name = winreg.EnumKey(key, i)
+                except OSError:
+                    break
+                try:
+                    with winreg.OpenKey(key, name) as sub:
+                        match = str(winreg.QueryValueEx(sub, "MatchingDeviceId")[0]).lower()
+                        desc = str(winreg.QueryValueEx(sub, "DriverDesc")[0]).lower()
+                except Exception:
+                    continue
+                if "vigembus" in match or want in match or "gamepad emulation" in desc:
+                    return name
+    except Exception:
+        return ""
+    return ""
+
+
+def elevated_ps(script, timeout=300):
+    """跑一段 PowerShell（要管理员时弹一次 UAC）。提权进程的 stdout 回不到本进程，所以把结果
+    写到临时文件再读回来 —— 不然只看到退出码，分不清到底删掉了没有（PowerShell 里 Remove-Item
+    失败是非终止错误，照样退 0，踩过）。"""
+    tag = os.getpid()
+    path = os.path.join(tempfile.gettempdir(), "xjoy-elev-%s.ps1" % tag)
+    out = os.path.join(tempfile.gettempdir(), "xjoy-elev-%s.txt" % tag)
+    body = ("$ErrorActionPreference='Continue'\n$Out=%s\n"
+            "function L($s){$null=Add-Content -Encoding utf8 -Path $Out -Value ([string]$s)}\n%s"
+            % (ps_quote(out), script))
+    try:
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+    except Exception as exc:
+        return "写临时脚本失败：%s" % exc
+    code, msg = run_priv(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                          "-File", path], timeout=timeout)
+    for _ in range(10):
+        if os.path.exists(out):
+            break
+        time.sleep(0.3)
+    try:
+        with open(out, "r", encoding="utf-8") as fh:
+            got = fh.read().strip()
+        return got or msg or "（提权进程没回话，退出码 %d）" % code
+    except Exception:
+        return msg or "（提权进程没回话，退出码 %d —— 可能 UAC 没批）" % code
+
+
 def driver_uninstall_entry():
     """找 ViGEmBus 在 HKLM 里登记的卸载程序（官方安装程序会写）；返回 (名字, UninstallString)。"""
     if winreg is None:
@@ -176,6 +241,79 @@ def driver_uninstall_entry():
         except Exception:
             continue
     return "", ""
+
+
+def _node_key_exists(inst):
+    """节点键（Enum\\Root\\SYSTEM\\<n>）还在吗。服务键的 Enum 值可能指着已经没了的节点 ——
+    那种是"等重启生效"，不算真节点（混在一起就会把 --check 的结论说错）。"""
+    if winreg is None or not inst:
+        return False
+    tail = inst.split("\\")[-1]
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r"SYSTEM\CurrentControlSet\Enum\Root\SYSTEM\%s" % tail):
+            return True
+    except Exception:
+        return False
+
+
+def _service_enum_instance():
+    if winreg is None:
+        return ""
+    try:
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                            r"SYSTEM\CurrentControlSet\Services\%s\Enum" % DRIVER_SERVICE) as key:
+            for i in range(8):
+                try:
+                    return str(winreg.QueryValueEx(key, str(i))[0])
+                except OSError:
+                    break
+    except Exception:
+        return ""
+    return ""
+
+
+def driver_pending_node():
+    """服务键的 Enum 还指着某个节点、但节点键已经没了 = 已经摘掉、等重启生效。"""
+    inst = _service_enum_instance()
+    return inst if inst and not _node_key_exists(inst) else ""
+
+
+def driver_device_instance():
+    """这个驱动的设备节点实例 ID，三条路（顺序就是可靠程度）：
+    ① 服务键的 Enum 子键（PnP 记的就是它，且节点键要真在）；② 直接扫 Enum\\Root\\SYSTEM 的
+    注册表键 —— 服务键被删以后它的 Enum 子键也跟着没了，但节点键（含空壳键）还在，就是它让
+    PnP 开机把驱动装回来，pnputil 又不认这个"待删除"的节点，所以这条必须有；③ pnputil 输出里
+    找描述含 Nefarius / Gamepad Emulation 的那条。"""
+    inst = _service_enum_instance()
+    if inst and _node_key_exists(inst):
+        return inst
+    if winreg is not None:
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum\Root\SYSTEM") as base:
+                for i in range(64):
+                    try:
+                        name = winreg.EnumKey(base, i)
+                    except OSError:
+                        break
+                    try:
+                        with winreg.OpenKey(base, name) as sub:
+                            desc = str(winreg.QueryValueEx(sub, "DeviceDesc")[0])
+                    except Exception:
+                        desc = ""
+                    low = desc.lower()
+                    if "gamepad emulation" in low or DRIVER_SERVICE.lower() in low:
+                        return "ROOT\\SYSTEM\\%s" % name
+        except Exception:
+            pass
+    code, msg = run(["pnputil", "/enum-devices", "/class", "System"], timeout=120)
+    for block in msg.replace("\r", "").split("\n\n"):
+        low = block.lower()
+        if "gamepad emulation" in low or DRIVER_SERVICE.lower() in low:
+            m = re.search(r"(?:Instance ID|实例 ID)\s*[:：]\s*(\S+)", block, re.I)
+            if m:
+                return m.group(1)
+    return ""
 
 
 def driver_info():
@@ -232,8 +370,23 @@ def cleanup(target, delay=1.5, wait_for_parent=12.0):
     回报给主窗口；然后等窗口关闭（最多 wait_for_parent 秒），再删那个卸载程序本体和空目录；最后延迟
     3 秒删这条副本自己（正在跑的可执行文件删不了自己）。副本的日志写在 %TEMP%，不往安装目录写。"""
     time.sleep(delay)
+    # 副本的当前工作目录常常就是安装目录本身（双击 exe 时进程 CWD 就是那个文件夹）：
+    # 站在要删的目录里，os.rmdir 一定报 [WinError 32]，先跳到 %TEMP%
+    try:
+        os.chdir(tempfile.gettempdir())
+    except Exception:
+        pass
     lines = []
     failed = False
+    # 安装目录里那份日志会被一起删掉，卸载记录就没得看了：先复制到 %TEMP% 再删
+    log_path = os.path.join(target, SELF_LOG)
+    if os.path.exists(log_path):
+        try:
+            keep = os.path.join(tempfile.gettempdir(), "xjoy-uninstall.log")
+            shutil.copy2(log_path, keep)
+            lines.append("日志先复制到 %s（安装目录里那份照规矩删掉）" % keep)
+        except Exception as exc:
+            lines.append("日志复制失败（记录会跟着安装目录一起没了）：%s" % exc)
     adb_here = os.path.join(target, "adb.exe")
     if os.path.exists(adb_here):
         try:
@@ -276,12 +429,19 @@ def cleanup(target, delay=1.5, wait_for_parent=12.0):
     if os.path.isdir(target):
         rest = sorted(os.listdir(target))
         if not rest:
-            try:
-                os.rmdir(target)
-                tail.append("目录空了 → 连目录一起删（%s）" % target)
-            except Exception as exc:
+            last_exc = None
+            for _ in range(8):
+                try:
+                    os.rmdir(target)
+                    tail.append("目录空了 → 连目录一起删（%s）" % target)
+                    last_exc = None
+                    break
+                except Exception as exc:
+                    last_exc = exc
+                    time.sleep(0.5)
+            if last_exc:
                 failed = True
-                tail.append("目录删不掉：%s" % exc)
+                tail.append("目录删不掉（试了 8 次，多半是资源管理器还开着这个文件夹，或者被别的程序占着）：%s" % last_exc)
         else:
             tail.append("还有别的文件，保留目录：%s" % ", ".join(rest))
     else:
@@ -351,8 +511,13 @@ def detect_install_dir():
     if os.path.exists(os.path.join(base, INFO_FILE)):
         return base, "卸载程序自己就在安装目录里（这里有安装引导写的 %s）" % INFO_FILE, notes
     if os.path.exists(os.path.join(base, "Xpad-joy.exe")):
-        return base, "卸载程序自己就在安装目录里（这份 Xpad-joy.exe 和它在一起）", notes
-    notes.append("① 自己所在的目录 %s：没找到 %s，也没找到 Xpad-joy.exe" % (base, INFO_FILE))
+        # 光是"这儿有 Xpad-joy.exe"不够：源码目录里也有一份，在那儿跑就把源码目录当安装目录（真踩过）。
+        # 安装引导会一起拷 adb.exe + AdbWinApi.dll，所以要有这两样之一才认。
+        if os.path.exists(os.path.join(base, "adb.exe")) or os.path.exists(os.path.join(base, "AdbWinApi.dll")):
+            return base, "卸载程序自己就在安装目录里（这份 Xpad-joy.exe 和它在一起，还有 adb 三件套）", notes
+        notes.append("① 自己所在的目录 %s：有 Xpad-joy.exe 但没有 adb 三件套 → 像源码目录，不当安装目录" % base)
+    else:
+        notes.append("① 自己所在的目录 %s：没找到 %s，也没找到 Xpad-joy.exe" % (base, INFO_FILE))
     loc = registry_install_location()
     if loc:
         if os.path.isdir(loc):
@@ -378,6 +543,7 @@ class Uninstaller:
     def __init__(self, root):
         self.root = root
         self.log_lines = []
+        self.log("[版本] 卸载程序 %s" % BUILD_STAMP)
         self.driver = driver_info()
         self.desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         self.install_dir, self.how, self.notes = detect_install_dir()
@@ -480,10 +646,14 @@ class Uninstaller:
         if not target:
             self.set_status("状态：没识别到安装位置", BAD)
             self.log("[卸载] 没识别到安装位置")
+            if self.var_driver.get():
+                self.remove_driver()   # 目录没了但驱动可能还装着：驱动那部分照跑
             return
         if not os.path.isdir(target):
             self.set_status("状态：识别到的目录不存在（可能已经被删了）", BAD)
-            self.log("[卸载] 目录不存在：%s" % target)
+            self.log("[目录] 不存在：%s —— 文件部分跳过，驱动那部分照跑" % target)
+            if self.var_driver.get():
+                self.remove_driver()
             return
         self.uninstall_button.config(state=tk.DISABLED, text="卸载中…")
         self.log("[卸载] 目标：%s（依据：%s）" % (target, self.how))
@@ -586,6 +756,7 @@ class Uninstaller:
         self.log("[驱动] 开始卸 ViGEmBus（要管理员，会弹一次 UAC）")
         self.log("  提醒：卸掉之后游戏里看不到手柄，要重新装（https://github.com/nefarius/ViGEmBus/releases）")
         done = False
+        inf = ""   # 驱动存储在 C:\Windows\INF 里的"已发布"名字（比如 oem82.inf）
         name, un = driver_uninstall_entry()
         if un:
             self.log("  官方登记的卸载程序：%s → %s" % (name or "（没名字）", un))
@@ -627,21 +798,102 @@ class Uninstaller:
                 self.log("  驱动存储里没找到 ViGEmBus 的 inf（%s）→ 只能走官方卸载程序或设备管理器"
                          % (msg or "读不到（可能要管理员）"))
 
+        # ② 必须摘掉这个驱动的设备节点：只 sc delete 的话，服务键的 Enum 子键和
+        #    Enum\Root\SYSTEM\0001 还在，重启时 PnP 会拿幸存的驱动文件把包重新登记回来
+        #    （实测过：重启后 oem82.inf、服务键、总线节点全复活）。
+        inst = driver_device_instance()
+        if inst:
+            code, msg = run_priv(["pnputil", "/remove-device", inst], timeout=300)
+            self.log("  pnputil /remove-device %s → 退出码 %d：%s" % (inst, code, msg or "无输出"))
+            if "reboot" in (msg or "").lower():
+                self.log("  这条要重启才生效 —— 重启后重跑一次本程序确认（别重启前重跑，驱动还加载在内核里）")
+            if winreg is not None:
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                        r"SYSTEM\CurrentControlSet\Enum\Root\SYSTEM\%s" % inst.split("\\")[-1]):
+                        self.log("  节点键还在（就是它让 PnP 开机把驱动装回来）—— 这条要重启才真正生效，重启后重跑一次确认")
+                except Exception:
+                    self.log("  节点键没了 ✓（不会再让 PnP 开机装回来）")
+        else:
+            pend = driver_pending_node()
+            if pend:
+                self.log("  节点键已经没了（服务键的 Enum 还指着 %s）—— 已经摘过，等重启生效" % pend)
+            else:
+                self.log("  没找到这个驱动的设备节点（可能本来就没有，或者要管理员才看得见）")
+
+        # ②b Class 键里的驱动条目：pnputil /delete-driver 不删它，而它才是开机重建幻影节点的源头
+        entry = driver_class_entry()
+        if entry:
+            script = (
+                "$key='SYSTEM\\CurrentControlSet\\Control\\Class\\%s\\%s'\n"
+                "$h=[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($key,"
+                "[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,"
+                "[System.Security.AccessControl.RegistryRights]::TakeOwnership)\n"
+                "if (-not $h) { L('打不开这个条目（拿不到 TakeOwnership 权限）—— 包和文件已经删了，条目只是条记录，开机最多让设备报 Problem 37，装不回驱动') }\n"
+                "else {\n"
+                "  $admin=New-Object System.Security.Principal.NTAccount('BUILTIN','Administrators')\n"
+                "  $acl=$h.GetAccessControl(); $acl.SetOwner($admin); $h.SetAccessControl($acl)\n"
+                "  $acl2=$h.GetAccessControl()\n"
+                "  $rule=New-Object System.Security.AccessControl.RegistryAccessRule($admin,'FullControl',"
+                "'ContainerInherit,ObjectInherit','None','Allow')\n"
+                "  $acl2.SetAccessRule($rule); $h.SetAccessControl($acl2); $h.Close()\n"
+                "  [Microsoft.Win32.Registry]::LocalMachine.DeleteSubKeyTree($key,$false)\n"
+                "  L('条目 ' + $key + ' 处理完，再查还在吗: ' + [bool](Test-Path ('HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\%s\\%s')))\n"
+                % (CLASS_SYSTEM_GUID, entry, CLASS_SYSTEM_GUID, entry))
+            self.log("  Class 驱动条目 %s\\%s（就是它让 PnP 开机重建幻影节点）→ %s"
+                     % (CLASS_SYSTEM_GUID, entry, elevated_ps(script, timeout=300)))
+        else:
+            self.log("  Class 键里没有这个驱动的条目 ✓（没有东西让 PnP 开机照着它重建）")
+
         if driver_info()["installed"]:
             code, msg = run_priv(["sc.exe", "delete", DRIVER_SERVICE], timeout=120)
             self.log("  sc delete %s → 退出码 %d：%s" % (DRIVER_SERVICE, code, msg or "无输出"))
-            drv = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "drivers",
-                               "%s.sys" % DRIVER_SERVICE)
-            if os.path.exists(drv):
-                try:
-                    os.remove(drv)
-                    self.log("  删了 %s" % drv)
-                except Exception as exc:
-                    self.log("  %s 删不掉（驱动还加载在内核里，重启后再删）" % drv)
-            else:
-                self.log("  驱动文件已经不在了（%s）" % drv)
         else:
             self.log("  服务已经没了 → 不用 sc delete（驱动文件一般被卸载程序一起删了）")
+
+        # 驱动文件 / 驱动存储包目录 / C:\Windows\INF 副本：要提权才能删，而且"在不在"必须从提权那一侧读 ——
+        # 非提权进程读 DriverStore 会被 ACL 挡住，os.path.exists 直接返回 False，之前就是这样误报"删掉了"。
+        # 另外 System32\drivers\*.sys 常常是驱动存储里同一文件记录的硬链接：只删一个名字不算删掉，
+        # 必须先把包用 pnputil 删（上面已删），这里再把剩下的名字清干净。加载在内核里时删不掉，
+        # 重启后重跑一次本程序（勾着驱动那项）就能清。
+        drv = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "drivers",
+                           "%s.sys" % DRIVER_SERVICE)
+        repo = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32",
+                            "DriverStore", "FileRepository")
+        win_inf = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "INF")
+        targets = [drv]
+        try:
+            targets.extend(os.path.join(repo, n) for n in os.listdir(repo)
+                           if n.lower().startswith("%s.inf_" % DRIVER_SERVICE.lower()))
+        except Exception as exc:
+            self.log("  读驱动存储目录失败：%s" % exc)
+        if inf:
+            targets.append(os.path.join(win_inf, inf))
+        try:
+            targets.extend(os.path.join(win_inf, n) for n in os.listdir(win_inf)
+                           if n.lower().endswith(".inf") and DRIVER_SERVICE.lower() in n.lower())
+        except Exception:
+            pass
+        targets = [t for t in dict.fromkeys(targets)]
+        if targets:
+            script = ("$items = @(" + ", ".join(ps_quote(t) for t in targets) + ")\n"
+                      "foreach ($t in $items) {\n"
+                      "  if (-not (Test-Path $t)) { L('已经没有: ' + $t); continue }\n"
+                      "  takeown /f $t /r /d y | Out-Null\n"
+                      "  icacls $t /inheritance:r /grant '*S-1-5-32-544:F' /t | Out-Null\n"
+                      "  Remove-Item $t -Recurse -Force -ErrorAction Continue\n"
+                      "  if (Test-Path $t) { L('还在（没删掉）: ' + $t) } else { L('删了: ' + $t) }\n"
+                      "}\n")
+            script += ("if (Test-Path " + ps_quote(drv) + ") { L('硬链接还剩: ' + ((fsutil hardlink list "
+                        + ps_quote(drv) + ") -join ' | ')) }\n")
+            got = elevated_ps(script, timeout=300)
+            lines = [ln for ln in (got or "").splitlines() if ln.strip()]
+            if not lines:
+                self.log("  提权那一侧没回话（UAC 没批？）：" + (got or "无输出"))
+            for line in lines:
+                self.log("  " + line)
+        else:
+            self.log("  驱动相关的文件、包目录、INF 副本都不在了 ✓")
 
         info = driver_info()
         self.driver = info
@@ -650,6 +902,7 @@ class Uninstaller:
                                  fg=(BAD if info["installed"] else OK))
         if info["installed"]:
             self.log("  结果：驱动还在（%s）—— 内核驱动要重启才算卸干净，或者用官方卸载程序" % (info.get("state") or "-"))
+            self.log("  重启后重跑一次本程序（勾着驱动那项）确认：服务键、驱动存储包、设备节点三项都没了才算真干净")
         else:
             self.log("  结果：驱动卸掉了 ✓（重启一次最干净）")
 
@@ -716,6 +969,16 @@ def main():
                                        if os.path.exists(lnk) else "没有"))
         info = driver_info()
         out("驱动=%s（%s，没勾「卸载 ViGEmBus 驱动」就不动）" % (info["installed"], info.get("state", "")))
+        inst = driver_device_instance()
+        pend = driver_pending_node()
+        if inst:
+            out("  设备节点=%s（要重启才卸得干净；重启后重跑一次确认）" % inst)
+        elif pend:
+            out("  设备节点键已经没了 ✓（服务键的 Enum 还指着 %s，等重启后服务键就没了）" % pend)
+        else:
+            out("  设备节点=没找到")
+        entry = driver_class_entry()
+        out("  Class 驱动条目=%s（它才是开机重建幻影节点的源头，归 TrustedInstaller）" % (entry or "没有 ✓"))
         return 0
 
     root = tk.Tk()

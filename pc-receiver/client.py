@@ -8,7 +8,7 @@
      电脑处理），下面一行是最近一条事件 + 没收到包时的自检。二维码内容还是 xpad://<本机IP>:<端口>，
      只用 qrcode 的模块矩阵画到 tkinter Canvas 上，不用 PIL；也可以手输或点「复制地址」：
      - Wi-Fi 这条走 UDP：手机上填这个 IP 和端口。
-     - USB 这条走 ADB 隧道：ADB 只能转发 TCP，客户端启动时自动 adb reverse（之后每 30 秒补一次），
+     - USB 这条走 ADB / hdc 隧道：只能转发 TCP，客户端启动时自动 adb reverse（找不到 adb 就 hdc rport，鸿蒙手机用 hdc），之后每 30 秒补一次，
        手机上只能填 127.0.0.1:PORT，包走 receiver.py 的 TCP 监听。两条可以同时用。
   2) 状态行按"电脑真的收到过包"写（15 秒内有包才算已连接），延迟显示 RTT 和包间隔，能看出是网络慢
      还是手机发得慢。按键状态、震动次数这些不再显示（要看在手机手柄页和下面那行事件）。
@@ -24,7 +24,8 @@
     pip install qrcode        # 只用 qrcode 顶层模块 + qrcode.constants，这台机器没有 PIL 也能跑
     python pc-receiver/client.py
     python pc-receiver/client.py --port 27042 --ip 192.168.1.10
-    python pc-receiver/client.py --console        # 不创建虚拟手柄，只看运行信息
+    python pc-receiver/client.py --console        # 输出走命令行（仍然创建虚拟手柄，Steam 认得到）
+    python pc-receiver/client.py --no-pad         # 只看运行信息、不建虚拟手柄（Steam 认不到）
     python pc-receiver/client.py --no-tcp         # 只留 UDP（关掉 ADB 隧道的 TCP 监听）
     python pc-receiver/client.py --qr-bg "#FFFFFF" --qr-ink "#111519"   # 二维码底色/墨色（十六进制）
     python pc-receiver/client.py --no-qr          # 不画二维码，只留文本地址手输
@@ -105,6 +106,8 @@ QR_MODULE_PX = 6
 
 # PATH 里找不到 adb 时才用这个固定位置
 ADB_FALLBACK = r"D:\Android\SDK\platform-tools\adb.exe"
+# 鸿蒙手机用 hdc（DevEco Studio 的 toolchains），PATH 里没有时才用这个固定位置
+HDC_FALLBACK = r"D:\Huawei\DevEco Studio\sdk\default\openharmony\toolchains\hdc.exe"
 
 
 def render_qr(canvas, payload, bg, ink, module_px, note=None):
@@ -232,27 +235,52 @@ def find_adb():
     return None
 
 
-def run_adb_reverse(port):
-    """跑 adb reverse tcp:PORT tcp:PORT（ADB 只能转发 TCP），结果写成一行给事件区。"""
+def find_hdc():
+    """先 PATH 里的 hdc，再试 DevEco Studio 的 toolchains（鸿蒙手机用 hdc，不是 adb）。"""
+    found = shutil.which("hdc")
+    if found:
+        return found
+    if os.path.isfile(HDC_FALLBACK):
+        return HDC_FALLBACK
+    return None
+
+
+def run_port_forward(port):
+    """先试 adb reverse（安卓），没有 adb 再试 hdc rport（鸿蒙）。两条方向一样：手机上的
+    127.0.0.1:PORT 转到电脑。结果写成一行给事件区。"""
+    adb_msg = ""
     adb = find_adb()
-    if not adb:
-        return ("没找到 adb：装 Android platform-tools 或手动跑 adb reverse tcp:%d tcp:%d" % (port, port))
+    if adb:
+        try:
+            r = subprocess.run([adb, "reverse", "tcp:%d" % port, "tcp:%d" % port],
+                               capture_output=True, text=True, timeout=15, creationflags=NO_WINDOW)
+            out = (r.stdout or "").strip() or (r.stderr or "").strip()
+            if r.returncode == 0:
+                return "adb reverse tcp:%d tcp:%d 已执行（%s）；手机上填 127.0.0.1:%d（adb=%s）" % (port, port, out or "无输出", port, adb)
+            adb_msg = "adb 返回码 %d：%s" % (r.returncode, out or "无输出")
+        except Exception as exc:
+            adb_msg = "adb 执行失败：%s" % exc
+    else:
+        adb_msg = "没找到 adb"
+    hdc = find_hdc()
+    if not hdc:
+        return "%s，也没找到 hdc：手动跑 hdc rport tcp:%d tcp:%d" % (adb_msg, port, port)
     try:
-        r = subprocess.run([adb, "reverse", "tcp:%d" % port, "tcp:%d" % port],
+        r = subprocess.run([hdc, "rport", "tcp:%d" % port, "tcp:%d" % port],
                            capture_output=True, text=True, timeout=15, creationflags=NO_WINDOW)
         out = (r.stdout or "").strip() or (r.stderr or "").strip()
         if r.returncode == 0:
-            return "adb reverse tcp:%d tcp:%d 已执行（%s）；手机上填 127.0.0.1:%d（adb=%s）" % (port, port, out or "无输出", port, adb)
-        return "adb 返回码 %d：%s" % (r.returncode, out or "无输出")
+            return "hdc rport tcp:%d tcp:%d 已执行（%s）；鸿蒙手机上填 127.0.0.1:%d（hdc=%s）" % (port, port, out or "无输出", port, hdc)
+        return "hdc 返回码 %d：%s（adb 那条：%s）" % (r.returncode, out or "无输出", adb_msg)
     except Exception as exc:
-        return "adb 执行失败：%s" % exc
+        return "hdc 执行失败：%s（adb 那条：%s）" % (exc, adb_msg)
 
 
 class GuiClient(receiver.Receiver):
     """复用 receiver.py 的协议与映射，只把运行信息搬到界面上。"""
 
-    def __init__(self, port, ip, force_console=False):
-        super().__init__(port, force_console, 10.0)
+    def __init__(self, port, ip, force_console=False, no_pad=False, prefer_backend="x360"):
+        super().__init__(port, force_console, 10.0, no_pad, prefer_backend)
         self.ip = ip
         self.status = "等待手机连接"
         self.lazy_pad = True     # 收到第一帧才创建虚拟手柄
@@ -336,16 +364,21 @@ def main():
     ap = argparse.ArgumentParser(description="Xpad-joy 电脑客户端：连接地址 + ADB 隧道 + 运行信息 + 虚拟 Xbox 手柄")
     ap.add_argument("--port", type=int, default=receiver.DEFAULT_PORT, help="监听端口，UDP 和 TCP 都用它（默认 %d）" % receiver.DEFAULT_PORT)
     ap.add_argument("--ip", default=None, help="界面显示的电脑 IP（默认自动检测本机 IPv4；走 ADB 时手机上填 127.0.0.1）")
-    ap.add_argument("--console", action="store_true", help="不创建虚拟手柄，只看运行信息")
+    ap.add_argument("--console", action="store_true", help="输出走命令行（仍然会创建虚拟手柄，Steam 能认到）")
+    ap.add_argument("--no-pad", action="store_true", help="不创建虚拟手柄、只看打印（Steam 看不到手柄）")
     ap.add_argument("--no-tcp", action="store_true", help="只留 UDP：不监听 TCP（ADB 只能转发 TCP，所以这条关掉就走不了 ADB）")
     ap.add_argument("--no-ack", action="store_true", help="不回 ack：少一半回包（代价是测不了输入路径往返）")
     ap.add_argument("--qr-bg", default=QR_BG, help="二维码底色（十六进制，默认 %s）" % QR_BG)
     ap.add_argument("--qr-ink", default=QR_INK, help="二维码墨色（十六进制，默认 %s）" % QR_INK)
     ap.add_argument("--no-qr", action="store_true", help="不画二维码，只留文本地址（没有 qrcode 库时也只能这样）")
+    ap.add_argument("--backend", choices=("x360", "ds4"), default="x360",
+                    help="虚拟手柄后端：x360（XInput，默认）或 ds4（HID，Steam Input 原生认）；"
+                         "X360 验证不过会自动退到 DS4")
     args = ap.parse_args()
 
     ip = args.ip or detect_local_ip()
-    client = GuiClient(args.port, ip, force_console=args.console)
+    client = GuiClient(args.port, ip, force_console=args.console, no_pad=args.no_pad,
+                       prefer_backend=args.backend)
     client.ack_enabled = not args.no_ack
     client.tcp_enabled = not args.no_tcp
     payload = "xpad://%s:%d" % (ip, args.port)
@@ -472,12 +505,12 @@ def main():
     def redraw_qr():
         draw_qr()
 
-    def adb_reverse():
+    def port_forward():
         def go():
-            msg = run_adb_reverse(args.port)
-            client.note("[adb] %s" % msg)
+            msg = run_port_forward(args.port)
+            client.note("[转发] %s" % msg)
             if args.console:
-                print("[adb] %s" % msg)
+                print("[转发] %s" % msg)
         threading.Thread(target=go, daemon=True).start()
 
     def firewall():
@@ -491,15 +524,16 @@ def main():
     buttons = tk.Frame(root, bg=BG)
     buttons.pack(fill=tk.X, padx=12, pady=(0, 10))
     for text, command in (("复制地址", copy_url), ("重新检测 IP", regen), ("重画二维码", redraw_qr),
-                          ("执行 adb reverse", adb_reverse), ("测试手机震动", test_rumble),
+                          ("执行 adb/hdc 转发", port_forward), ("测试手机震动", test_rumble),
                           ("添加防火墙放行(UDP+TCP)", firewall)):
         tk.Button(buttons, text=text, bg=CARD, fg=INK, activebackground=ACCENT,
                   activeforeground=INK, relief=tk.FLAT, command=command).pack(side=tk.LEFT, padx=(0, 6))
 
     def keep_tunnel():
-        # 开机自动跑一次 adb reverse，之后每 30 秒补一次（adb 服务重启会把 reverse 清掉）
-        if find_adb():
-            adb_reverse()
+        # 开机自动跑一次 adb reverse（安卓）/ hdc rport（鸿蒙），之后每 30 秒补一次
+        # （adb / hdc 服务重启会把转发清掉）
+        if find_adb() or find_hdc():
+            port_forward()
         root.after(30000, keep_tunnel)
 
     keep_tunnel()
@@ -535,7 +569,7 @@ def main():
             labels["buttons"].config(text=detect)
             hint.config(text="" if online else
                         "还没收到包：①手机与电脑同一网段（不是移动数据）②防火墙（%s）③端口一致（%d）"
-                        "④走 ADB 只能 127.0.0.1，并且电脑已经 adb reverse" % (fw_state, client.port))
+                        "④走 USB 隧道只能 127.0.0.1，并且电脑已经 adb reverse（安卓）或 hdc rport（鸿蒙）" % (fw_state, client.port))
             recent = list(client.events)
             event_line.config(text=recent[-1] if recent else "-")
         except Exception as exc:

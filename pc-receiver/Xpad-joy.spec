@@ -5,7 +5,7 @@ a = Analysis(
     ['client.py'],
     pathex=[],
     binaries=[],
-    datas=[('icon.ico', '.')],
+    datas=[('icon.ico', '.'), ('C:/Users/26397/AppData/Local/Programs/Python/Python314/Lib/site-packages/vgamepad/win/vigem', 'vgamepad/win/vigem')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

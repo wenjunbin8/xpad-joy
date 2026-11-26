@@ -7,7 +7,9 @@ PC 端（Windows）接收程序：接收安卓手机发来的游戏手柄状态�
 用法示例:
     python receiver.py
     python receiver.py --port 27042
-    python receiver.py --console          # 强制控制台模式（无 vgamepad / 无 ViGEmBus 驱动时调试用）
+    python receiver.py --console          # 输出走命令行（仍然会创建虚拟手柄，Steam 能认到）
+    python receiver.py --no-pad           # 只看打印、不建虚拟手柄（Steam 就看不到手柄）
+    python receiver.py --backend x360     # 虚拟手柄后端：x360（默认）或 ds4；X360 验证不过会自动退到 DS4
     python receiver.py --timeout 10
     python receiver.py --status-interval 2    # 运行信息（按键/摇杆/扳机/收包数）显示在这里
     python receiver.py --no-tcp               # 只留 UDP（关掉 ADB 隧道的 TCP 监听）
@@ -53,6 +55,13 @@ import sys
 import threading
 import time
 
+# 虚拟手柄这一层单独放在 pads.py（两个后端 + 验证）：pads.py 自己 try/except 导入 vgamepad，
+# 这里也包一层，保证 python -m py_compile 等静态校验不会失败。
+try:
+    import pads
+except Exception:
+    pads = None
+
 # vgamepad 依赖 Windows 的 ViGEmBus 驱动；未安装库时导入会失败，
 # 这里必须放在 try/except 中，保证 python -m py_compile 等静态校验不会失败。
 try:
@@ -65,6 +74,15 @@ DEFAULT_TIMEOUT = 10.0  # 秒：连续无数据则打印超时提示，但程序
 
 MAX_FRAME_BYTES = 4096        # TCP 帧里包长度的上限（和 UDP 的 recvfrom(4096) 一致）
 MAX_FRAMES_PER_CONN = 1000    # 单条 TCP 连接一次最多攒这么多帧，超了直接断连
+
+
+def xinput_connected(slot):
+    """查这个玩家位上 XInput 是不是真能看到设备（虚拟手柄没真正插上时会返回 False）。
+
+    读不到（非 Windows、没有 xinput dll）返回 None，不报假消息。
+    返回码 0 = 有设备；1167 = ERROR_DEVICE_NOT_CONNECTED。
+    """
+    return pads.xinput_visible(slot) if pads else None
 
 # ---------------------------------------------------------------------------
 # buttons 位定义：bit -> 显示名称。
@@ -238,9 +256,13 @@ class Conn:
 class Receiver:
     """核心：收包 -> 与上一帧比较 -> 只在变化时设置虚拟手柄 / 打印。"""
 
-    def __init__(self, port, force_console, timeout):
+    def __init__(self, port, force_console, timeout, no_pad=False, prefer_backend="x360"):
         self.port = port
         self.timeout = timeout
+        self.no_pad = no_pad             # True：只打印，不创建虚拟手柄（--no-pad）
+        self.prefer_backend = prefer_backend   # x360 / ds4；pads.pick_backend 按这个顺序试
+        self.backend = None              # 当前用的虚拟手柄后端（pads.Backend 对象）
+        self.backend_notes = []          # 建失败/验证失败的说明，打印用
         self.invalid_count = 0
         self.packet_count = 0
         self.last_sender = None          # 最近一次状态包来源地址（震动包回送目标）
@@ -291,6 +313,8 @@ class Receiver:
     # -- 虚拟手柄初始化 ---------------------------------------------------
     def pad_index(self):
         """新版用 get_index()，老版用 player_index。"""
+        if self.backend is not None:
+            return self.backend.index()
         idx = getattr(self.pad, "player_index", None)
         if idx is None and hasattr(self.pad, "get_index"):
             try:
@@ -300,43 +324,45 @@ class Receiver:
         return idx if idx is not None else "?"
 
     def init_gamepad(self):
-        if self.console_mode:
-            p("[模式] 控制台模式（vgamepad 不可用或被 --console 强制）")
+        # 注意：--console 只是"输出走命令行"，不该顺手关掉虚拟手柄 —— Steam 认的就是这个手柄。
+        # 要只看打印不建手柄，用 --no-pad。
+        if self.no_pad:
+            p("[模式] 只打印（--no-pad：不创建虚拟手柄）")
             return False
-
-        gamepad_class = None
-        class_name = None
-        for name in GAMEPAD_CLASS_CANDIDATES:
-            obj = getattr(vg, name, None)
-            if isinstance(obj, type) or callable(obj):
-                gamepad_class, class_name = obj, name
-                break
-        if gamepad_class is None:
-            p("[警告] 这个 vgamepad 版本里没有可用的手柄类（试过 %s）" % ", ".join(GAMEPAD_CLASS_CANDIDATES))
+        if pads is None or getattr(pads, "vg", None) is None:
+            p("[模式] 不建虚拟手柄：没有 vgamepad（打包版要用 --add-data 把 ViGEmClient.dll 打进包，"
+              "或这个 Python 没装 vgamepad）")
+            p("        原因：%s" % (getattr(pads, "VG_IMPORT_ERROR", "") or "pads 模块没读到"))
             self.console_mode = True
             return False
 
-        try:
-            self.pad = gamepad_class()
-        except Exception as exc:
-            # 驱动没装 / 驱动太老 / 没权限 / 总线里没有可插入的目标
-            p("[警告] 用 %s 创建虚拟手柄失败: %s" % (class_name, exc))
-            p("        检查：设备管理器里有没有 ViGEmBus（VIGEM 总线）设备；驱动建议 4.x；用普通用户权限跑一次试试")
+        backend, notes = pads.pick_backend(p, self.prefer_backend)
+        self.backend_notes = list(notes)
+        if backend is None:
+            for n in notes:
+                p("[警告] " + n)
             self.console_mode = True
             return False
 
-        for bit, label in BUTTON_BITS:
-            obj = resolve_attr(BUTTON_PREFIXES, BUTTON_NAME_CANDIDATES.get(label, (label,)))
-            if obj is None:
-                p("[警告] vgamepad 缺少按钮 %s，该键将被忽略" % label)
-            self.button_objs[bit] = obj
-        for key in DPAD_KEYS:
-            obj = resolve_attr(DPAD_PREFIXES, (key,))
-            if obj is None:
-                p("[警告] vgamepad 缺少十字键 %s，该方向将被忽略" % key)
-            self.dpad_objs[key] = obj
+        for n in notes:
+            p("[提示] " + n)
+        self.backend = backend
+        self.pad = backend.pad
+        self.button_objs = backend.buttons
 
-        p("[模式] 虚拟 Xbox 360 手柄（vgamepad %s，玩家 %s）" % (class_name, self.pad_index()))
+        if backend.verified is True:
+            p("[后端] %s —— 验证通过：Windows 和 Steam 都能看到这个设备" % backend.label())
+        else:
+            p("[警告] 用 %s 建了 target（玩家 %s），验证结果 = %s：设备其实没插上去，"
+              "Steam 和游戏都读不到这个手柄" % (backend.display, backend.index(), backend.verified))
+            p("        这种情况客户端看着一切正常（包照收、打印照刷），但 Steam 认不到。修驱动侧：")
+            p("        1) 装 Nefarius ViGEmBus（建议 1.22+，和 vgamepad 自带的 ViGEmClient 配套）；")
+            p("        2) 管理员执行 sc config ViGEmBus start= demand 然后重启；")
+            p("        3) 设备管理器里 ViGEmBus 总线节点不能报 Problem 31；")
+            p("        4) 虚拟设备要能绑上 XnaComposite 类驱动包（缺包时管理员执行："
+              "pnputil /add-driver C:\\Windows\\INF\\xusb22.inf /install）")
+        for n in backend.notes:
+            p("[提示] " + n)
         self.register_vibration()
         return True
 
@@ -354,24 +380,9 @@ class Receiver:
 
     def register_vibration(self):
         """新版是 register_notification，老版是 register_vibration_callback；两种都试。"""
-        if self.pad is None:
+        if self.backend is None:
             return
-
-        def on_vibration(*args):
-            left, right = self._motors(args)
-            # 只入队，发送在主循环里做（这条是驱动线程，不能直接写 socket）
-            self.queue_rumble(left, right, "游戏")
-
-        for name in ("register_vibration_callback", "set_vibration_callback", "register_notification"):
-            fn = getattr(self.pad, name, None)
-            if callable(fn):
-                try:
-                    fn(on_vibration)
-                    p("[震动回调] 已注册（%s）；游戏发震动时会回传给手机（手机马达）" % name)
-                    return
-                except Exception as exc:
-                    p("[提示] %s 注册失败: %s" % (name, exc))
-        p("[提示] 当前 vgamepad 版本不支持震动回调，忽略震动包")
+        self.backend.register_rumble(lambda left, right: self.queue_rumble(left, right, "游戏"))
 
     def queue_rumble(self, left, right, source="手动"):
         """游戏发给虚拟手柄的震动（ViGEmBus 回调）或界面上的测试按钮：这里只入队。"""
@@ -415,7 +426,7 @@ class Receiver:
         self.packet_count += 1
         self.last_sender = addr
         self._warned_timeout = False
-        if self.lazy_pad and self.pad is None and not self.console_mode:
+        if self.lazy_pad and self.backend is None and not self.no_pad and getattr(pads, "vg", None) is not None:
             # 收到第一帧才创建虚拟手柄：否则 Steam 一开客户端就显示「手柄已连接」
             self.init_gamepad()
         now = time.time()
@@ -461,7 +472,11 @@ class Receiver:
             self._last_printed = dict(self.prev)
 
         src = fmt_addr(self.last_sender) if self.last_sender else "-"
-        mode = "控制台" if self.console_mode else "虚拟手柄(玩家 %s)" % self.pad_index()
+        if self.backend is not None:
+            mode = "虚拟手柄 %s(玩家 %s)%s" % (self.backend.kind, self.pad_index(),
+                                              "" if self.backend.verified is True else "(设备没插上，Steam 读不到)")
+        else:
+            mode = ("只打印(--no-pad)" if self.no_pad else "未建手柄")
         if self.prev is None:
             # 只有 ping：只在数字变化时打印一次，避免每秒刷屏
             if self.ping_count == self._last_printed_ping:
@@ -584,6 +599,8 @@ class Receiver:
 
     def _apply(self, state, changed, old=None):
         """把状态写入虚拟手柄；changed=None 表示全量设置。"""
+        if self.backend is not None:
+            return self.backend.apply(state, changed)
         if self.pad is None:
             return
 
@@ -840,6 +857,14 @@ class Receiver:
 
     def release_gamepad(self, reason=""):
         """把虚拟手柄从 ViGEmBus 上拔下（Steam 就看不到手柄了），下次收到包再重新挂上。"""
+        if self.backend is not None:
+            # 只靠 GC 跑一次 __del__（unregister + target_remove + free）；
+            # 手动调 __del__ 会在解释器退出时再跑一次，对已经 free 的指针二次 free → 进程崩。
+            self.backend.close()
+            self.backend = None      # 必须置空：handle_state 只在 backend is None 时才重建，
+            self.pad = None          # 否则空闲拔下之后再来包不会重新插上（Steam 就一直看不到）
+            p("[拔下] 虚拟手柄已从 ViGEmBus 移除%s" % ("（%s）" % reason if reason else ""))
+            return
         if self.pad is None:
             return
         try:
@@ -863,7 +888,11 @@ class Receiver:
 
     def cleanup(self):
         """优雅退出：释放所有按键、复位虚拟手柄、关闭 socket。"""
-        if self.pad is not None:
+        if self.backend is not None:
+            self.backend.close()
+            self.pad = None
+            p("[清理] 虚拟手柄已释放（后端 %s）" % self.backend.kind)
+        elif self.pad is not None:
             try:
                 for obj in list(self.button_objs.values()) + list(self.dpad_objs.values()):
                     if obj is not None:
@@ -926,15 +955,19 @@ def main():
 
     ap = argparse.ArgumentParser(description="接收安卓端手柄状态（UDP + TCP/ADB 隧道）并映射为虚拟 Xbox 360 手柄（XInput）")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT, help="监听端口，UDP 和 TCP 都用它（默认 %d）" % DEFAULT_PORT)
-    ap.add_argument("--console", action="store_true", help="强制控制台模式（不创建虚拟手柄）")
+    ap.add_argument("--console", action="store_true", help="输出走命令行（仍然会创建虚拟手柄，Steam 能认到）")
+    ap.add_argument("--no-pad", action="store_true", help="不创建虚拟手柄、只看打印（Steam 看不到手柄）")
     ap.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT, help="无数据超时秒数（默认 %.0f）" % DEFAULT_TIMEOUT)
     ap.add_argument("--status-interval", type=float, default=1.0,
                     help="运行信息刷新间隔秒数（默认 1，0 = 关闭；安卓第一屏已不再显示这些信息）")
     ap.add_argument("--no-ack", action="store_true", help="不回 ack（少一半回包，代价是测不了输入路径往返）")
     ap.add_argument("--no-tcp", action="store_true", help="只监听 UDP（关掉 ADB 隧道的 TCP）")
+    ap.add_argument("--backend", choices=("x360", "ds4"), default="x360",
+                    help="虚拟手柄后端：x360（XInput，默认）或 ds4（HID，Steam Input 原生认）；"
+                         "X360 验证不过会自动退到 DS4")
     args = ap.parse_args()
 
-    r = Receiver(args.port, args.console, args.timeout)
+    r = Receiver(args.port, args.console, args.timeout, args.no_pad, args.backend)
     r.status_interval = args.status_interval
     r.ack_enabled = not args.no_ack
     r.tcp_enabled = not args.no_tcp
