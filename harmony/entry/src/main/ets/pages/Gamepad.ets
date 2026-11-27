@@ -638,5 +638,6 @@ struct Gamepad {
     .width('100%')
     .height('100%')
     .backgroundColor(BG)
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

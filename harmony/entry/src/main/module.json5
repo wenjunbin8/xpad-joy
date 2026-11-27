@@ -17,7 +17,16 @@
         "label": "$string:app_name",
         "startWindowIcon": "$media:app_icon",
         "startWindowBackground": "$color:start_window_background",
-        "exported": true
+        "exported": true,
+        // 桌面（Home）的 intent：launcher 是靠这条决定"点图标起哪个 ability"。
+        // 少了这条时 hilog 里图标记录是 AppDetailAbility（点图标跳应用信息页），
+        // 加上之后再装一遍、重新点图标看 DesktopAppIcon: tap click 跟的是不是 EntryAbility。
+        "skills": [
+          {
+            "actions": ["action.system.home"],
+            "entities": ["entity.system.home"]
+          }
+        ]
       }
     ],
     "requestPermissions": [

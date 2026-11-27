@@ -5,7 +5,7 @@ import { layout } from '../common/LayoutConfig';
 import { UDP_PORT } from '../common/Protocol';
 import { openPrefs, getStr, getNum, getBool, put } from '../common/Prefs';
 import { BG, CARD, PANEL, ACCENT, LINE, INK, DIM } from '../common/Palette';
-import { applyOrientation } from '../common/AppCtx';
+import { applyOrientation, setSystemBars, syncBarColors } from '../common/AppCtx';
 
 /** 体感幅度：转多少度 = 摇杆满量程，和安卓端同一批限制 */
 const MIN_DEG: number = 3;
@@ -28,7 +28,6 @@ struct Index {
   @State gyroOn: boolean = false;
   @State gyroRange: number = DEFAULT_DEG;
   @State compact: boolean = true;
-  @State desc: string = '';
   @State hint: string = '';
   @State cw: number = 0;
   @State ch: number = 0;
@@ -60,6 +59,16 @@ struct Index {
     if (err !== '') {
       console.warn('设置方向失败：' + err);
       this.say('竖屏没设置成功：' + err);
+    }
+    // 手柄页/布局页是沉浸式（两个栏都关掉），回第一屏必须恢复状态栏；导航条保持关掉（那块是系统画的白条）
+    const err1 = await setSystemBars(['status']);
+    if (err1 !== '') {
+      console.warn('恢复状态栏失败：' + err1);
+    }
+    // 系统栏默认白色（浅色主题），深色界面上下就成两条白边 → 状态栏刷成界面同一套颜色，导航条关掉
+    const err2 = await syncBarColors();
+    if (err2 !== '') {
+      console.warn('系统栏颜色没设置成功：' + err2);
     }
   }
 
@@ -230,7 +239,6 @@ struct Index {
   /** 状态行：只有「已连接」和「未连接」两个状态（判据是电脑真的回复过 pong / XACK） */
   private render(): void {
     this.connected = controller.alive();
-    this.desc = controller.state.describe();
     this.drawPreview();
   }
 
@@ -434,10 +442,6 @@ struct Index {
           this.drawPreview();
         })
 
-      Text(this.desc)
-        .fontSize(13)
-        .fontColor(INK)
-
       Row({ space: 8 }) {
         Button('进入手柄')
           .fontSize(14)
@@ -514,6 +518,8 @@ struct Index {
     .height('100%')
     .padding(16)
     .backgroundColor(BG)
+    // 背景要铺到安全区外（状态栏那条 + 原来导航条那块），不然底下会露出系统的白底
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }
 

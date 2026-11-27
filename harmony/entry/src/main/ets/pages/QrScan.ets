@@ -243,5 +243,6 @@ struct QrScan {
     .height('100%')
     .padding(16)
     .backgroundColor(BG)
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

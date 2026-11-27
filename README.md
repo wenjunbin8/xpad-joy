@@ -7,7 +7,7 @@
 - 双击摇杆 = L3 / R3（再双击取消）
 - 陀螺仪可映射到左摇杆（第一屏开关 + 幅度滑条）
 - 游戏发给虚拟手柄的震动会回传给手机马达
-- **鸿蒙端（HarmonyOS）开发中** —— `harmony/` 那份 ArkTS 工程，同一份协议和布局
+- **鸿蒙端（HarmonyOS）基本完成** —— `harmony/` 那份 ArkTS 工程，同一份协议和布局，等最终调试和上架
 
 编译好的文件在 **[Releases](https://github.com/wenjunbin8/xpad-joy/releases)**：`Xpad-joy-Installer.exe`（电脑端安装引导）和 `Xpad-joy.apk`（安卓 App，debug 构建）。
 
@@ -79,7 +79,7 @@
 
 ```
 android/        安卓 App（Kotlin，无第三方 UI 库；自定义 View 画按键、摇杆、十字键）
-harmony/        鸿蒙端（ArkTS，开发中；同一份协议和布局）
+harmony/        鸿蒙端（ArkTS，基本完成，等最终调试和上架）
 pc-receiver/    电脑端：client.py（界面）、receiver.py（控制台）、installer.py / uninstaller.py、*.spec、bat、icon.ico
 docs/           界面截图和归档的开发记录
 tools/          生成图标的脚本（make_icon.py、preview_on_bg.py，要 Pillow）
@@ -97,13 +97,13 @@ assets/         图标主图和小尺寸预览
 
 ---
 
-## 鸿蒙端（开发中）
+## 鸿蒙端（基本完成，等最终调试和上架）
 
-`harmony/` 是同一套东西的 HarmonyOS 版（ArkTS，DevEco / hvigor 工程，单 `entry` 模块）：同一份协议（端口 27042、同一组 JSON 字段）、同一套布局配置，页面分第一屏 / 手柄屏 / 布局编辑 / 扫码。
+`harmony/` 是同一套东西的 HarmonyOS 版（ArkTS，DevEco / hvigor 工程，单 `entry` 模块）：同一份协议（端口 27042、同一组 JSON 字段）、同一套布局配置，四个页面都在（第一屏 / 手柄屏 / 布局编辑 / 扫码）。
 
-已经跑通的：`hdc rport tcp:27042 tcp:27042` 隧道（方向和 `adb reverse` 一致）、Wi-Fi UDP、扫码（相机权限拿到后要补跑一次才会出画面）、震动回传。
+已经跑通的：`hdc rport tcp:27042 tcp:27042` 隧道（方向和 `adb reverse` 一致）、Wi-Fi UDP、扫码（相机权限拿到后要补跑一次才会出画面）、震动回传、系统栏配色和安全区（第一屏只留状态栏、四个页面根容器 `expandSafeArea`），以及 `module.json5` 给 `EntryAbility` 加的 `skills`（`action.system.home` / `entity.system.home`）—— 没有这条，点桌面图标会被引到「应用信息」页（装完要重装一次才刷新 launcher 的记录）。
 
-还没做：上架和签名分发。构建用 `hvigorw assembleHap`；没配 `signingConfigs` 时 hvigor 会 WARN 并跳过签名（产物是 unsigned hap，装不到真机），`harmony/build-profile.json5` 里那三行签名路径是占位，要用各自的 DevEco 自动签名。测试过程中截的模拟器截图（`harmony/emutest/*.jpeg`）不进仓库。
+剩下的等最终调试和上架：上架要 release 签名走应用市场（内部测试 / 开放测试）分发，开发期用 DevEco Run 或 `hdc shell aa start -a EntryAbility -b com.xpad.joy`（`harmony/启动应用.bat`、`harmony/抓启动日志.bat`）。构建用 `hvigorw assembleHap`；`harmony/build-profile.json5` 里 `signingConfigs` 是占位（DevEco 会把真实路径和两个密码写回这个文件，那份别提交），没签名配置时产物是 unsigned hap，装不到真机。测试过程中截的模拟器截图（`harmony/emutest/*.jpeg`）不进仓库。
 
 ---
 
