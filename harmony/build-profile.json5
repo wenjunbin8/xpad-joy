@@ -1,19 +1,6 @@
 {
   "app": {
     "signingConfigs": [
-      {
-        "name": "default",
-        "type": "HarmonyOS",
-        "material": {
-          "certpath": "<各自 DevEco 自动签名目录>\\.ohos\\config\\default_harmony_<哈希>.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "<占位：DevEco 生成，不入库>",
-          "profile": "<各自 DevEco 自动签名目录>\\.ohos\\config\\default_harmony_<哈希>.p7b",
-          "signAlg": "SHA256withECDSA",
-          "storeFile": "<各自 DevEco 自动签名目录>\\.ohos\\config\\default_harmony_<哈希>.p12",
-          "storePassword": "<占位：DevEco 生成，不入库>"
-        }
-      }
     ],
     "products": [
       {

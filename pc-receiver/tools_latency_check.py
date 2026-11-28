@@ -1,5 +1,5 @@
-import sys, time
-sys.path.insert(0, r"D:\project\实训\xpad-joy\pc-receiver")
+import sys, time, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import receiver
 
 j = b'{"t":"state","buttons":1029,"hat":8,"lx":-128,"ly":0,"rx":127,"ry":0,"lt":128,"rt":200,"rtt":12,"srtt":9,"ts":1234567890123}'

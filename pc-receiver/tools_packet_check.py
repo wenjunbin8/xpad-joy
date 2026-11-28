@@ -1,7 +1,8 @@
 import socket
 import sys
+import os
 
-sys.path.insert(0, r"D:\project\实训\xpad-joy\pc-receiver")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import receiver
 
 r = receiver.Receiver(0, True, 10.0)          # console 模式：不创建虚拟手柄

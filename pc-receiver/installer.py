@@ -473,10 +473,8 @@ class Installer:
         if adb:
             self.install_adb(target)
 
-        if self.driver["installed"]:
-            self.log_async("[驱动] 已经装了（%s），跳过" % (self.driver.get("state") or "已安装"))
-        else:
-            self.install_driver()
+        # 不管驱动有没有装过，这一步都跑（按你说的：每次都执行安装操作）
+        self.install_driver(target)
 
         self.log_async("[完成] 双击 %s 就能用（第一次要放行防火墙）。" % os.path.join(target, CLIENT_EXE))
         self.on_main(lambda: self.set_status("状态：安装完成 ✓（就是这个位置）", OK))
@@ -544,30 +542,69 @@ class Installer:
                        "官方 Google USB driver（含 android_winusb.inf，只覆盖 Google 设备）："
                        "https://developer.android.com/tools/releases/platform-tools")
 
-    def install_driver(self):
-        """没装才装，全程静默；这一步需要管理员（非管理员时弹一次 UAC）。"""
+    def install_driver(self, log_dir=None):
+        """每次都跑一遍驱动安装程序（不管之前有没有装过），全程静默；要管理员（非管理员时弹一次 UAC）。"""
         setup = res_path(DRIVER_FILE)
         if not os.path.exists(setup):
             self.log_async("[驱动] 引导里没有驱动安装程序：只能自己下 https://github.com/nefarius/ViGEmBus/releases")
             return
+        if self.driver["installed"]:
+            self.log_async("[驱动] 已经装了（%s）→ 按你说的照样跑一遍安装程序（覆盖装/修复）"
+                           % (self.driver.get("state") or "已安装"))
         if not is_admin():
             self.log_async("[驱动] 当前不是管理员：这一步会弹一次 UAC 确认")
-        # 这个包是 Advanced Installer 的自解压包，命令行开关不一定和 Inno 一样：先试 /silent，再试 /quiet
-        for flags in (["/silent"], ["/quiet"]):
-            self.log_async("[驱动] 静默安装，试 %s …" % " ".join(flags))
+        # 从二进制里读出来的开关是 WiX burn 那一套：/quiet /qn /passive /qb /norestart /log（没有 /S、/silent）
+        # 退出码：0 = 跑完；3010 = 跑完但要重启；其他 = 开关不认或装失败
+        base = log_dir or os.environ.get("TEMP", "")
+        log_path = os.path.join(base, "xjoy-vigem.log") if base else ""
+        switch_sets = (["/quiet", "/norestart"], ["/qn", "/norestart"], ["/passive", "/norestart"], ["/S"], ["/silent"])
+        run_code = None
+        used = ""
+        for flags in switch_sets:
+            args = list(flags)
+            if log_path:
+                args += ["/log", log_path]
+            self.log_async("[驱动] 静默安装，试 %s …" % " ".join(args))
             if is_admin():
-                code, result = run([setup] + flags, timeout=600)
+                code, result = run([setup] + args, timeout=600)
             else:
                 cmd = "Start-Process -FilePath %s -ArgumentList %s -Verb RunAs -Wait" % (
-                    ps_quote(setup), ps_quote(" ".join(flags)))
+                    ps_quote(setup), ps_quote(" ".join(args)))
                 code, result = run(["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd], timeout=600)
             self.log_async("[驱动] 退出码 %d：%s" % (code, result or "无输出"))
-            self.recheck()
-            if self.driver["installed"]:
-                self.log_async("[驱动] 装好了（%s）；不用重启，重开客户端就能建虚拟手柄" % (self.driver.get("state") or "-"))
-                return
-        self.log_async("[驱动] 静默没成功（这个包的开关可能是图形界面），用管理员双击驱动包手动装："
-                       "https://github.com/nefarius/ViGEmBus/releases")
+            if code in (0, 3010):
+                run_code = code
+                used = " ".join(args)
+                break
+        if log_path and os.path.exists(log_path):
+            try:
+                with open(log_path, "r", encoding="utf-8", errors="replace") as fh:
+                    lines = [ln.strip() for ln in fh.read().splitlines() if ln.strip()]
+                for ln in lines[-8:]:
+                    self.log_async("[驱动·日志] %s" % ln)
+            except Exception as exc:
+                self.log_async("[驱动·日志] 读 %s 失败：%s" % (log_path, exc))
+        self.recheck()
+        info = self.driver
+        if run_code is None:
+            self.log_async("[驱动] 每个开关都没跑通（试过的：%s）。这个包只认图形界面时的办法：管理员双击 "
+                           "%s 点完，再重启。" % (" / ".join(" ".join(s) for s in switch_sets), setup))
+            return
+        self.log_async("[驱动] 按 %s 跑完（退出码 %d）" % (used, run_code))
+        if run_code == 3010:
+            self.log_async("[驱动] 安装程序说要走一次重启（退出码 3010）：重启后驱动才真正上去")
+        if not info["installed"]:
+            self.log_async("[驱动] 跑完了但检测还是没装：看上面那几行驱动日志（多半是权限或设备节点没重建）")
+            return
+        state = info.get("state") or "-"
+        self.log_async("[驱动] 跑完后的状态：%s（启动类型 %s，来源 %s）"
+                       % (state, info.get("starttype") or "-", info.get("how") or "-"))
+        if state == "运行中":
+            self.log_async("[驱动] 驱动在跑：重开客户端就能建虚拟手柄")
+        else:
+            self.log_async("[驱动] 服务键在但没跑：要管理员跑 sc config ViGEmBus start= demand 然后重启；"
+                           "设备管理器里那个总线节点不能报 Problem 31（跑完安装程序不一定能修设备节点，这一条要重启）")
+
 
     def quit(self):
         self.root.destroy()
